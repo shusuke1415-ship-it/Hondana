@@ -1,25 +1,10 @@
 import type { Book } from "./openbd";
 
-const APPLICATION_ID = import.meta.env.VITE_RAKUTEN_APPLICATION_ID as
-  | string
-  | undefined;
-const ACCESS_KEY = import.meta.env.VITE_RAKUTEN_ACCESS_KEY as
-  | string
-  | undefined;
-
-// The Rakuten Books API enforces an origin allowlist that a browser can't
-// spoof from localhost, so dev traffic goes through a Vite proxy (see
-// vite.config.ts) that attaches the registered placeholder origin. In
-// production, the real deployed domain must be added to the "許可された
-// ウェブサイト" list in the Rakuten app settings so the browser's genuine
-// Origin header satisfies the check directly, with no proxy needed.
-const BASE_URL = import.meta.env.DEV
-  ? "/rakuten-api"
-  : "https://openapi.rakuten.co.jp";
-
-const SEARCH_ENDPOINT = `${BASE_URL}/services/api/BooksTotal/Search/20170404`;
-
-export const isRakutenConfigured = Boolean(APPLICATION_ID && ACCESS_KEY);
+// Calls go through our own backend (api/books.ts) instead of Rakuten
+// directly — credentials stay server-side, and the backend caches popular
+// queries so many concurrent visitors don't each burn through the shared
+// 1 req/sec quota Rakuten granted this app.
+const SEARCH_ENDPOINT = "/api/books";
 
 interface RakutenItem {
   title: string;
@@ -56,20 +41,14 @@ function mapItem(item: RakutenItem): Book {
 }
 
 async function search(params: Record<string, string>): Promise<Book[]> {
-  if (!APPLICATION_ID || !ACCESS_KEY) {
-    throw new Error("Rakuten API is not configured");
-  }
   const url = new URL(SEARCH_ENDPOINT, window.location.origin);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("applicationId", APPLICATION_ID);
-  url.searchParams.set("accessKey", ACCESS_KEY);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
 
   const res = await fetch(url.toString());
   if (!res.ok) {
-    throw new Error(`Rakuten Books API request failed: ${res.status}`);
+    throw new Error(`Books API request failed: ${res.status}`);
   }
   const data: RakutenResponse = await res.json();
   return data.Items.filter((i) => i.Item.largeImageUrl && i.Item.title).map(

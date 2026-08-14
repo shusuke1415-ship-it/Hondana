@@ -1,10 +1,6 @@
 import { seedBooks } from "../data/seedBooks";
 import { fetchBooks, type Book } from "./openbd";
-import {
-  fetchBooksByKeyword,
-  fetchTrendingBooks,
-  isRakutenConfigured,
-} from "./rakuten";
+import { fetchBooksByKeyword, fetchTrendingBooks } from "./rakuten";
 
 const GENRE_STORAGE_KEY = "serendipity-genre-scores";
 const AUTHOR_STORAGE_KEY = "serendipity-author-scores";
@@ -312,6 +308,19 @@ async function pickNextFromSeed(shown: Set<string>): Promise<FeedEntry | null> {
   };
 }
 
-export function pickNext(shown: Set<string>): Promise<FeedEntry | null> {
-  return isRakutenConfigured ? pickNextFromRakuten(shown) : pickNextFromSeed(shown);
+// If our own backend (api/books.ts) isn't reachable — e.g. running `npm run
+// dev` without `vercel dev`, or a genuine outage — fall back to the static
+// openBD-backed feed for the rest of the session rather than retrying a
+// failing network call on every single pick.
+let rakutenBackendDown = false;
+
+export async function pickNext(shown: Set<string>): Promise<FeedEntry | null> {
+  if (!rakutenBackendDown) {
+    try {
+      return await pickNextFromRakuten(shown);
+    } catch {
+      rakutenBackendDown = true;
+    }
+  }
+  return pickNextFromSeed(shown);
 }

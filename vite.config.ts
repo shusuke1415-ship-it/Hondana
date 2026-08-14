@@ -1,17 +1,41 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Serves /api/books from the Vite dev server using the same logic the
+// production Vercel function runs, so `npm run dev` alone is enough to
+// exercise the real backend — no separate `vercel dev` process needed.
+function rakutenDevApiPlugin(): Plugin {
+  return {
+    name: 'rakuten-dev-api',
+    configureServer(server) {
+      server.middlewares.use('/api/books', async (req, res) => {
+        const { handleBooksRequest } = await import('./server/rakutenProxy.ts')
+        const query = Object.fromEntries(
+          new URL(req.url ?? '', 'http://localhost').searchParams,
+        )
+        const result = await handleBooksRequest(query)
+        res.statusCode = result.status
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify(result.body))
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  const rakutenAllowedOrigin = env.VITE_RAKUTEN_ALLOWED_ORIGIN
+  // Loads .env into process.env for this config file's own use (e.g. the
+  // dev API plugin reading RAKUTEN_* below) — Vite doesn't do this
+  // automatically outside of import.meta.env in client code.
+  Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
 
   return {
     plugins: [
       react(),
       tailwindcss(),
+      rakutenDevApiPlugin(),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['apple-touch-icon.png'],
@@ -44,26 +68,5 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
-    server: {
-      proxy: rakutenAllowedOrigin
-        ? {
-            '/rakuten-api': {
-              target: 'https://openapi.rakuten.co.jp',
-              changeOrigin: true,
-              rewrite: (path: string) => path.replace(/^\/rakuten-api/, ''),
-              configure: (proxy) => {
-                // The Rakuten Books API enforces a registered-origin allowlist via
-                // the Origin/Referer headers, which browsers won't let dev code
-                // spoof from localhost. The dev proxy runs in Node, so it can set
-                // these to the registered placeholder domain on our behalf.
-                proxy.on('proxyReq', (proxyReq) => {
-                  proxyReq.setHeader('Origin', rakutenAllowedOrigin)
-                  proxyReq.setHeader('Referer', `${rakutenAllowedOrigin}/`)
-                })
-              },
-            },
-          }
-        : undefined,
-    },
   }
 })
