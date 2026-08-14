@@ -95,6 +95,15 @@ export function FavoritesPage({ onClose }: FavoritesPageProps) {
           })}
         </div>
       )}
+
+      <footer className="flex justify-center gap-4 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-6 text-xs text-neutral-500">
+        <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="underline">
+          プライバシーポリシー
+        </a>
+        <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="underline">
+          利用規約
+        </a>
+      </footer>
     </div>
   );
 }
