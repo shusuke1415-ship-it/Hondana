@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { seedBooks } from "../data/seedBooks";
 import { fetchBooks, type Book } from "../lib/openbd";
-import { recordSignal } from "../lib/recommendation";
+import { fetchTrendingBooks } from "../lib/rakuten";
+import { GENRE_IDS, GENRE_TAB_LIST, recordSignal, throttle } from "../lib/recommendation";
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -12,10 +13,11 @@ interface Candidate {
   genre: string;
 }
 
-// Two picks per genre from the curated seed set gives a broad taste sampler
-// without needing a slow multi-genre Rakuten fetch just to bootstrap this
-// one-time screen.
-function pickSample(): { isbn: string; genre: string }[] {
+const PICKS_PER_GENRE = 2;
+
+// Two picks per genre from the curated seed set — used only as a fallback
+// if Rakuten is unreachable, since it needs no network round trip.
+function pickSeedSample(): { isbn: string; genre: string }[] {
   const byGenre = new Map<string, { isbn: string; genre: string }[]>();
   for (const b of seedBooks) {
     const list = byGenre.get(b.genre) ?? [];
@@ -24,26 +26,73 @@ function pickSample(): { isbn: string; genre: string }[] {
   }
   const sample: { isbn: string; genre: string }[] = [];
   for (const list of byGenre.values()) {
-    sample.push(...list.slice(0, 2));
+    sample.push(...list.slice(0, PICKS_PER_GENRE));
   }
   return sample;
 }
 
 export function Onboarding({ onComplete }: OnboardingProps) {
-  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [loadingMore, setLoadingMore] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const candidatesRef = useRef<Candidate[]>([]);
 
   useEffect(() => {
-    const sample = pickSample();
-    fetchBooks(sample.map((s) => s.isbn))
-      .then((books) => {
+    let cancelled = false;
+
+    async function loadFromSeed() {
+      const sample = pickSeedSample();
+      try {
+        const books = await fetchBooks(sample.map((s) => s.isbn));
+        if (cancelled) return;
         const genreByIsbn = new Map(sample.map((s) => [s.isbn, s.genre]));
         const list = books
           .filter((b) => b.cover)
           .map((book) => ({ book, genre: genreByIsbn.get(book.isbn) ?? "" }));
         setCandidates(list);
-      })
-      .catch(() => setCandidates([]));
+      } catch {
+        if (!cancelled) setCandidates([]);
+      } finally {
+        if (!cancelled) setLoadingMore(false);
+      }
+    }
+
+    // Pulls real bestsellers from the same source the actual feed uses, so
+    // the very first screen doesn't undersell the app with the old niche
+    // openBD sampler. Loads progressively (genre by genre) so users can
+    // start tapping before every genre has finished loading.
+    async function loadFromRakuten() {
+      let successCount = 0;
+      for (let i = 0; i < GENRE_TAB_LIST.length; i++) {
+        if (cancelled) return;
+        const genre = GENRE_TAB_LIST[i];
+        try {
+          await throttle(i === 0);
+          const books = await fetchTrendingBooks(GENRE_IDS[genre], PICKS_PER_GENRE);
+          if (cancelled) return;
+          if (books.length > 0) {
+            successCount++;
+            const seenIsbns = new Set(candidatesRef.current.map((c) => c.book.isbn));
+            const additions = books
+              .filter((book) => !seenIsbns.has(book.isbn))
+              .map((book) => ({ book, genre }));
+            candidatesRef.current = [...candidatesRef.current, ...additions];
+            setCandidates(candidatesRef.current);
+          }
+        } catch {
+          // skip this genre, keep going with the rest
+        }
+      }
+      if (!cancelled) {
+        setLoadingMore(false);
+        if (successCount === 0) await loadFromSeed(); // Rakuten backend unreachable entirely
+      }
+    }
+
+    loadFromRakuten();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function toggle(isbn: string) {
@@ -56,11 +105,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   function handleStart() {
-    if (candidates) {
-      for (const { book, genre } of candidates) {
-        if (selected.has(book.isbn)) {
-          recordSignal(genre, book.author, "like");
-        }
+    for (const { book, genre } of candidates) {
+      if (selected.has(book.isbn)) {
+        recordSignal(genre, book.author, "like");
       }
     }
     try {
@@ -80,7 +127,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         </p>
       </div>
 
-      {candidates === null ? (
+      {candidates.length === 0 && loadingMore ? (
         <div className="flex flex-1 items-center justify-center">
           <span className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-600 border-t-amber-400" />
         </div>
@@ -116,6 +163,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               </button>
             );
           })}
+          {loadingMore && candidates.length > 0 && (
+            <div className="col-span-2 flex justify-center py-3">
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-600 border-t-amber-400" />
+            </div>
+          )}
         </div>
       )}
 

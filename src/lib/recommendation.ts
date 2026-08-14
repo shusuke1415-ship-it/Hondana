@@ -26,7 +26,7 @@ const GENRE_ADJACENCY: Record<string, string[]> = {
 // be mixed in under normal book listings (manga/青年誌, 写真集・タレント,
 // BL/TL). Trusting a keyword search alone let that content straight into
 // the "trending" feed — genre-scoped browsing avoids that class of result.
-const GENRE_IDS: Record<string, string> = {
+export const GENRE_IDS: Record<string, string> = {
   小説: "001004008", // 日本の小説
   ミステリー: "001004001", // ミステリー・サスペンス
   海外文学: "001004009", // 外国の小説
@@ -201,7 +201,7 @@ function pickUnshown(pool: Book[], shown: Set<string>): { book: Book; favoredAut
 // wait so switching doesn't sit on a dead ~1s pause; it still updates
 // lastCallAt so calls after it stay properly spaced.
 let lastCallAt = 0;
-async function throttle(priority = false) {
+export async function throttle(priority = false) {
   if (!priority) {
     const wait = Math.max(0, lastCallAt + 1100 - Date.now());
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
