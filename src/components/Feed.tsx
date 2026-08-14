@@ -89,7 +89,7 @@ export function Feed() {
         <span>{favoriteCount}</span>
       </button>
 
-      <div className="h-dvh snap-y snap-mandatory overflow-y-scroll scroll-smooth">
+      <div className="h-dvh snap-y snap-mandatory overflow-y-scroll">
         {entries.map((entry, i) => (
           <FeedCard
             key={`${entry.book.isbn}-${i}`}

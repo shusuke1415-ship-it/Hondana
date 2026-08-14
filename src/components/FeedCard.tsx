@@ -27,6 +27,7 @@ export function FeedCard({
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
   const [showHeartBurst, setShowHeartBurst] = useState(false);
+  const [synopsisExpanded, setSynopsisExpanded] = useState(false);
   const rakutenUrl = book.purchaseUrl;
   const amazonUrl = buildAmazonPurchaseUrl(book.isbn);
 
@@ -170,9 +171,24 @@ export function FeedCard({
         {book.author && (
           <p className="mt-0.5 text-sm text-neutral-200">{book.author}</p>
         )}
-        <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-neutral-200">
-          {book.synopsis || "あらすじは準備中です。"}
-        </p>
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            setSynopsisExpanded((v) => !v);
+          }}
+          className={`mt-2 ${synopsisExpanded ? "max-h-[32vh] overflow-y-auto" : ""}`}
+        >
+          <p
+            className={`text-sm leading-relaxed text-neutral-200 ${synopsisExpanded ? "" : "line-clamp-3"}`}
+          >
+            {book.synopsis || "あらすじは準備中です。"}
+          </p>
+          {book.synopsis && (
+            <span className="mt-0.5 inline-block text-xs font-semibold text-amber-300">
+              {synopsisExpanded ? "閉じる" : "続きを読む"}
+            </span>
+          )}
+        </div>
 
         <div className="mt-3 flex gap-2">
           {rakutenUrl && (
