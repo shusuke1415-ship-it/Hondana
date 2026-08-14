@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { pickNext, recordDwell, recordSignal, type FeedEntry } from "../lib/recommendation";
+import { addFavorite, getFavorites } from "../lib/favorites";
 import { FeedCard } from "./FeedCard";
+import { FavoritesPage } from "./FavoritesPage";
 
 const BATCH_SIZE = 5;
 
 export function Feed() {
   const [entries, setEntries] = useState<FeedEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [favoriteCount, setFavoriteCount] = useState(() => getFavorites().length);
   const shownRef = useRef<Set<string>>(new Set());
   const loadingRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -68,21 +72,40 @@ export function Feed() {
     );
   }
 
+  function handleLike(entry: FeedEntry) {
+    recordSignal(entry.genre, entry.book.author, "like");
+    addFavorite(entry.book, entry.genre);
+    setFavoriteCount(getFavorites().length);
+  }
+
   return (
-    <div className="h-dvh snap-y snap-mandatory overflow-y-scroll scroll-smooth">
-      {entries.map((entry, i) => (
-        <FeedCard
-          key={`${entry.book.isbn}-${i}`}
-          book={entry.book}
-          genre={entry.genre}
-          reason={entry.reason}
-          onLike={() => recordSignal(entry.genre, entry.book.author, "like")}
-          onDislike={() => recordSignal(entry.genre, entry.book.author, "dislike")}
-          onPurchaseClick={() => recordSignal(entry.genre, entry.book.author, "purchase")}
-          onDwell={(seconds) => recordDwell(entry.genre, entry.book.author, seconds)}
-        />
-      ))}
-      <div ref={sentinelRef} className="h-1" />
+    <div className="relative h-dvh w-full">
+      <button
+        type="button"
+        onClick={() => setShowFavorites(true)}
+        className="fixed right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] z-20 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-sm text-white backdrop-blur-sm"
+      >
+        <span>♥</span>
+        <span>{favoriteCount}</span>
+      </button>
+
+      <div className="h-dvh snap-y snap-mandatory overflow-y-scroll scroll-smooth">
+        {entries.map((entry, i) => (
+          <FeedCard
+            key={`${entry.book.isbn}-${i}`}
+            book={entry.book}
+            genre={entry.genre}
+            reason={entry.reason}
+            onLike={() => handleLike(entry)}
+            onDislike={() => recordSignal(entry.genre, entry.book.author, "dislike")}
+            onPurchaseClick={() => recordSignal(entry.genre, entry.book.author, "purchase")}
+            onDwell={(seconds) => recordDwell(entry.genre, entry.book.author, seconds)}
+          />
+        ))}
+        <div ref={sentinelRef} className="h-1" />
+      </div>
+
+      {showFavorites && <FavoritesPage onClose={() => setShowFavorites(false)} />}
     </div>
   );
 }

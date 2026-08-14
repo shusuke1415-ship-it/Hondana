@@ -27,7 +27,8 @@ export function FeedCard({
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
   const [showHeartBurst, setShowHeartBurst] = useState(false);
-  const purchaseUrl = book.purchaseUrl ?? buildAmazonPurchaseUrl(book.isbn);
+  const rakutenUrl = book.purchaseUrl;
+  const amazonUrl = buildAmazonPurchaseUrl(book.isbn);
 
   const sectionRef = useRef<HTMLElement | null>(null);
   const enteredAtRef = useRef<number | null>(null);
@@ -160,18 +161,38 @@ export function FeedCard({
           {book.synopsis || "あらすじは準備中です。"}
         </p>
 
-        <a
-          href={purchaseUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => {
-            e.stopPropagation();
-            onPurchaseClick();
-          }}
-          className="mt-3 block rounded-full bg-amber-500 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-amber-600"
-        >
-          この本を購入する
-        </a>
+        <div className="mt-3 flex gap-2">
+          {rakutenUrl && (
+            <a
+              href={rakutenUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPurchaseClick();
+              }}
+              className="flex-1 rounded-full bg-amber-500 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-amber-600"
+            >
+              楽天ブックスで購入
+            </a>
+          )}
+          <a
+            href={amazonUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPurchaseClick();
+            }}
+            className={`rounded-full px-4 py-3 text-center text-sm font-semibold transition ${
+              rakutenUrl
+                ? "flex-1 bg-white/15 text-white backdrop-blur-sm hover:bg-white/25"
+                : "flex-1 bg-amber-500 text-white hover:bg-amber-600"
+            }`}
+          >
+            Amazonで購入
+          </a>
+        </div>
       </div>
     </section>
   );

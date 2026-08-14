@@ -36,13 +36,20 @@ interface RakutenResponse {
   Items: { Item: RakutenItem }[];
 }
 
+// Rakuten's "large" image is only served at 200x200 by default — far too
+// blurry stretched across a full phone screen. The same thumbnail endpoint
+// accepts a bigger _ex=WxH, which serves close to the original resolution.
+function upscaleCover(url: string): string {
+  return url.replace(/_ex=\d+x\d+/, "_ex=800x800");
+}
+
 function mapItem(item: RakutenItem): Book {
   return {
     isbn: item.isbn,
     title: item.title,
     author: item.author,
     publisher: item.publisherName,
-    cover: item.largeImageUrl,
+    cover: upscaleCover(item.largeImageUrl),
     synopsis: item.itemCaption,
     purchaseUrl: item.itemUrl,
   };
