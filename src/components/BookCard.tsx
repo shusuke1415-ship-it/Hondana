@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import type { Book } from "../lib/openbd";
+import { buildAmazonPurchaseUrl } from "../lib/affiliate";
 
 interface BookCardProps {
   book: Book;
@@ -9,7 +10,7 @@ interface BookCardProps {
 
 export function BookCard({ book, genre }: BookCardProps) {
   const [flipped, setFlipped] = useState(false);
-  const purchaseUrl = `https://www.amazon.co.jp/s?k=${book.isbn}`;
+  const purchaseUrl = buildAmazonPurchaseUrl(book.isbn);
 
   return (
     <div
