@@ -199,6 +199,11 @@ export function FeedCard({
         <span className="mb-1 inline-block rounded-full bg-white/10 px-2 py-0.5 text-xs text-neutral-100 backdrop-blur-sm">
           {genre}
         </span>
+        {book.isNewRelease && (
+          <span className="mb-1 ml-1.5 inline-block rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+            新刊
+          </span>
+        )}
         <h2 className="text-lg font-bold text-white drop-shadow">{book.title}</h2>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-neutral-200">
           {book.author && <span>{book.author}</span>}

@@ -1,4 +1,4 @@
-import { GENRE_TAB_LIST } from "../lib/recommendation";
+import { GENRE_TAB_LIST, POPULAR_TAB } from "../lib/recommendation";
 
 interface GenreTabsProps {
   selected: string | null;
@@ -18,6 +18,17 @@ export function GenreTabs({ selected, onSelect }: GenreTabsProps) {
         }`}
       >
         おすすめ
+      </button>
+      <button
+        type="button"
+        onClick={() => onSelect(POPULAR_TAB)}
+        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold backdrop-blur-sm transition ${
+          selected === POPULAR_TAB
+            ? "bg-amber-500 text-white"
+            : "bg-black/30 text-white/80"
+        }`}
+      >
+        人気
       </button>
       {GENRE_TAB_LIST.map((genre) => (
         <button

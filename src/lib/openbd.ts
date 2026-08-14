@@ -10,6 +10,8 @@ export interface Book {
   /** Review count/average, when the data source provides them (e.g. Rakuten). */
   reviewCount?: number;
   reviewAverage?: number;
+  /** Published within the last couple of months, when the data source provides a release date (e.g. Rakuten). */
+  isNewRelease?: boolean;
 }
 
 interface OpenBDSummary {

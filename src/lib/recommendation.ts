@@ -52,6 +52,10 @@ const ALL_GENRES = Object.keys(GENRE_IDS).filter((g) => g !== "話題の本");
 // Curated order for the genre tab bar — excludes "話題の本" (cold-start
 // pseudo-genre, not user-selectable) and "写真集" (an openBD-fallback-only
 // alias for カルチャー, would just show as a confusing duplicate tab).
+// Sentinel value for the "人気" tab — not a real genre/preference tag, just
+// a UI mode that browses the trending pool directly (see pickNextPopular).
+export const POPULAR_TAB = "人気";
+
 export const GENRE_TAB_LIST = [
   "小説",
   "ミステリー",
@@ -263,9 +267,12 @@ async function getGenrePool(genre: string, shown: Set<string>, priority = false)
   return state.items;
 }
 
-async function getTrendingPool(shown: Set<string>): Promise<Book[]> {
-  await ensurePoolHasCandidate(trendingState, shown, (page) =>
-    fetchTrendingBooks(GENRE_IDS["話題の本"], 30, page),
+async function getTrendingPool(shown: Set<string>, priority = false): Promise<Book[]> {
+  await ensurePoolHasCandidate(
+    trendingState,
+    shown,
+    (page) => fetchTrendingBooks(GENRE_IDS["話題の本"], 30, page),
+    priority,
   );
   return trendingState.items;
 }
@@ -420,4 +427,21 @@ export async function pickNextForGenre(
     }
   }
   return pickNextForGenreFromSeed(genre, shown);
+}
+
+// ---- "人気" tab: overall bestseller ranking, not tied to personal taste ----
+
+export async function pickNextPopular(
+  shown: Set<string>,
+  priority = false,
+): Promise<FeedEntry | null> {
+  const picked = pickUnshown(await getTrendingPool(shown, priority), shown);
+  if (!picked) return null;
+  shown.add(picked.book.isbn);
+  return {
+    book: picked.book,
+    genre: POPULAR_TAB,
+    reason: reasonFor("cold-start", POPULAR_TAB, null, picked.favoredAuthor),
+    kind: "cold-start",
+  };
 }

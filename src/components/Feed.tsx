@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   pickNext,
   pickNextForGenre,
+  pickNextPopular,
+  POPULAR_TAB,
   recordDwell,
   recordSignal,
   selectGenre,
@@ -36,9 +38,12 @@ export function Feed() {
       const next: FeedEntry[] = [];
       for (let i = 0; i < BATCH_SIZE; i++) {
         const genre = selectedGenreRef.current;
-        const entry = genre
-          ? await pickNextForGenre(genre, shownRef.current, priorityFirst && i === 0)
-          : await pickNext(shownRef.current);
+        const entry =
+          genre === POPULAR_TAB
+            ? await pickNextPopular(shownRef.current, priorityFirst && i === 0)
+            : genre
+              ? await pickNextForGenre(genre, shownRef.current, priorityFirst && i === 0)
+              : await pickNext(shownRef.current);
         if (entry) next.push(entry);
       }
       if (next.length > 0) {
@@ -83,7 +88,7 @@ export function Feed() {
   function handleSelectGenre(genre: string | null) {
     setSelectedGenre(genre);
     selectedGenreRef.current = genre;
-    if (genre) selectGenre(genre);
+    if (genre && genre !== POPULAR_TAB) selectGenre(genre);
     // Note: shownRef is intentionally NOT reset here — it's the persistent
     // cross-session history, and each genre already pulls from its own pool
     // so cross-genre entries in it don't block anything.

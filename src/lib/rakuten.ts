@@ -17,6 +17,7 @@ interface RakutenItem {
   booksGenreId: string;
   reviewCount: number;
   reviewAverage: string;
+  salesDate: string;
 }
 
 interface RakutenResponse {
@@ -28,6 +29,20 @@ interface RakutenResponse {
 // accepts a bigger _ex=WxH, which serves close to the original resolution.
 function upscaleCover(url: string): string {
   return url.replace(/_ex=\d+x\d+/, "_ex=800x800");
+}
+
+const NEW_RELEASE_WINDOW_DAYS = 60;
+
+// Rakuten's salesDate is a loosely formatted string like "2026年08月05日",
+// "2026年09月17日頃" (approximate), or occasionally "2011年12月" (no day).
+// Treat anything unparseable as not-new rather than guessing.
+function isRecentRelease(salesDate: string): boolean {
+  const match = salesDate.match(/^(\d{4})年(\d{1,2})月(?:(\d{1,2})日)?/);
+  if (!match) return false;
+  const [, year, month, day] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day ?? "1"));
+  const daysSinceRelease = (Date.now() - date.getTime()) / (24 * 60 * 60 * 1000);
+  return daysSinceRelease >= 0 && daysSinceRelease <= NEW_RELEASE_WINDOW_DAYS;
 }
 
 function mapItem(item: RakutenItem): Book {
@@ -42,6 +57,7 @@ function mapItem(item: RakutenItem): Book {
     purchaseUrl: item.itemUrl,
     reviewCount: item.reviewCount || undefined,
     reviewAverage: reviewAverage > 0 ? reviewAverage : undefined,
+    isNewRelease: item.salesDate ? isRecentRelease(item.salesDate) : false,
   };
 }
 
