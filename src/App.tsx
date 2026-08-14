@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { Feed } from "./components/Feed";
 import { Onboarding } from "./components/Onboarding";
 
@@ -20,6 +21,7 @@ function App() {
       ) : (
         <Onboarding onComplete={() => setOnboarded(true)} />
       )}
+      <Analytics />
     </div>
   );
 }
