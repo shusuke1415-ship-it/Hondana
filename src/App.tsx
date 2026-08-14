@@ -1,17 +1,12 @@
-import { Bookshelf } from "./components/Bookshelf";
+import { Feed } from "./components/Feed";
 
 function App() {
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-      <header className="border-b border-neutral-200 px-8 py-6 text-center dark:border-neutral-800">
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">
-          セレンディピティ書店
-        </h1>
-        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          気になる本をタップして裏返してみてください
-        </p>
+    <div className="relative h-dvh w-full bg-neutral-900">
+      <header className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/60 to-transparent px-6 py-4 text-center">
+        <h1 className="text-base font-bold text-white">セレンディピティ書店</h1>
       </header>
-      <Bookshelf />
+      <Feed />
     </div>
   );
 }
