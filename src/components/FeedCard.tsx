@@ -13,7 +13,7 @@ interface FeedCardProps {
 export function FeedCard({ book, genre, reason, onLike, onDislike }: FeedCardProps) {
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
-  const purchaseUrl = buildAmazonPurchaseUrl(book.isbn);
+  const purchaseUrl = book.purchaseUrl ?? buildAmazonPurchaseUrl(book.isbn);
 
   function handleLike() {
     if (liked) return;

@@ -5,6 +5,8 @@ export interface Book {
   publisher: string;
   cover: string;
   synopsis: string;
+  /** A real product page URL, when the data source provides one (e.g. Rakuten). */
+  purchaseUrl?: string;
 }
 
 interface OpenBDSummary {
