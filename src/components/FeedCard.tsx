@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { track } from "@vercel/analytics/react";
 import type { Book } from "../lib/openbd";
 import { buildAmazonPurchaseUrl } from "../lib/affiliate";
 
@@ -25,6 +26,7 @@ export function FeedCard({
   const [liked, setLiked] = useState(false);
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [synopsisExpanded, setSynopsisExpanded] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const rakutenUrl = book.purchaseUrl;
   const amazonUrl = buildAmazonPurchaseUrl(book.isbn);
 
@@ -36,6 +38,30 @@ export function FeedCard({
     if (liked) return;
     setLiked(true);
     onLike();
+  }
+
+  async function handleShare() {
+    track("share_book", { isbn: book.isbn });
+    const shareData = {
+      title: book.title,
+      text: `『${book.title}』${book.author ? "／" + book.author : ""} — セレンディピティ書店で見つけた本`,
+      url: window.location.origin,
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch {
+        // user cancelled the share sheet — nothing to do
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      // clipboard unavailable — silently ignore
+    }
   }
 
   function handleTap() {
@@ -134,6 +160,38 @@ export function FeedCard({
         >
           ♥
         </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleShare();
+            }}
+            aria-label="シェア"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-black/30 text-white/90 backdrop-blur-sm transition hover:bg-black/50"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-6 w-6"
+            >
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+          </button>
+          {shareCopied && (
+            <span className="pointer-events-none absolute right-14 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-xs text-white">
+              リンクをコピーしました
+            </span>
+          )}
+        </div>
       </div>
 
       {/* bottom text block: title / author / synopsis / purchase CTA */}
