@@ -49,11 +49,29 @@ const GENRE_IDS: Record<string, string> = {
 
 const ALL_GENRES = Object.keys(GENRE_IDS).filter((g) => g !== "話題の本");
 
-export type Signal = "like" | "dislike" | "purchase";
+// Curated order for the genre tab bar — excludes "話題の本" (cold-start
+// pseudo-genre, not user-selectable) and "写真集" (an openBD-fallback-only
+// alias for カルチャー, would just show as a confusing duplicate tab).
+export const GENRE_TAB_LIST = [
+  "小説",
+  "ミステリー",
+  "海外文学",
+  "エッセイ",
+  "文芸評論",
+  "思想",
+  "歴史",
+  "紀行",
+  "カルチャー",
+  "趣味",
+  "詩",
+  "生き方",
+  "心と体",
+];
+
+export type Signal = "like" | "purchase";
 
 const SIGNAL_WEIGHT: Record<Signal, number> = {
   like: 3,
-  dislike: -2,
   purchase: 6,
 };
 
@@ -90,11 +108,25 @@ function bump(key: string, name: string, amount: number) {
   saveMap(key, scores);
 }
 
-/** Explicit tap: like/dislike buttons, or a purchase-link click. */
+/** Explicit tap: the like button, or a purchase-link click. */
 export function recordSignal(genre: string, author: string, signal: Signal) {
   const weight = SIGNAL_WEIGHT[signal];
   bump(GENRE_STORAGE_KEY, genre, weight);
   bump(AUTHOR_STORAGE_KEY, author, weight);
+}
+
+/**
+ * Explicit genre-tab tap. Forces this genre to the top of the ranking
+ * immediately, regardless of prior history, so the feed visibly reacts
+ * right away instead of waiting for accumulated implicit signals.
+ */
+export function selectGenre(genre: string) {
+  const scores = loadMap(GENRE_STORAGE_KEY);
+  const maxOther = Object.entries(scores)
+    .filter(([g]) => g !== genre)
+    .reduce((max, [, s]) => Math.max(max, s), 0);
+  scores[genre] = maxOther + 10;
+  saveMap(GENRE_STORAGE_KEY, scores);
 }
 
 /**
@@ -331,4 +363,43 @@ export async function pickNext(shown: Set<string>): Promise<FeedEntry | null> {
     }
   }
   return pickNextFromSeed(shown);
+}
+
+// ---- Explicit genre-tab browsing (bypasses the learned ranking entirely) ----
+
+async function pickNextForGenreFromRakuten(genre: string, shown: Set<string>): Promise<FeedEntry | null> {
+  let picked = pickUnshown(await getGenrePool(genre, shown), shown);
+  if (!picked) picked = pickUnshown(await getTrendingPool(shown), shown);
+  if (!picked) return null;
+  shown.add(picked.book.isbn);
+  return {
+    book: picked.book,
+    genre,
+    reason: reasonFor("top", genre, genre, picked.favoredAuthor),
+    kind: "top",
+  };
+}
+
+async function pickNextForGenreFromSeed(genre: string, shown: Set<string>): Promise<FeedEntry | null> {
+  let pool = seedBooks.filter((b) => b.genre === genre && !shown.has(b.isbn));
+  if (pool.length === 0) {
+    pool = seedBooks.filter((b) => b.genre === genre);
+    if (pool.length === 0) return null; // this genre isn't in the static fallback data
+  }
+  const seedPicked = pool[Math.floor(Math.random() * pool.length)];
+  shown.add(seedPicked.isbn);
+  const [book] = await fetchBooks([seedPicked.isbn]);
+  if (!book) return null;
+  return { book, genre, reason: reasonFor("top", genre, genre, false), kind: "top" };
+}
+
+export async function pickNextForGenre(genre: string, shown: Set<string>): Promise<FeedEntry | null> {
+  if (!rakutenBackendDown) {
+    try {
+      return await pickNextForGenreFromRakuten(genre, shown);
+    } catch {
+      rakutenBackendDown = true;
+    }
+  }
+  return pickNextForGenreFromSeed(genre, shown);
 }

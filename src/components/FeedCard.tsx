@@ -7,7 +7,6 @@ interface FeedCardProps {
   genre: string;
   reason: string;
   onLike: () => void;
-  onDislike: () => void;
   onPurchaseClick: () => void;
   onDwell: (seconds: number) => void;
 }
@@ -20,12 +19,10 @@ export function FeedCard({
   genre,
   reason,
   onLike,
-  onDislike,
   onPurchaseClick,
   onDwell,
 }: FeedCardProps) {
   const [liked, setLiked] = useState(false);
-  const [disliked, setDisliked] = useState(false);
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [synopsisExpanded, setSynopsisExpanded] = useState(false);
   const rakutenUrl = book.purchaseUrl;
@@ -38,15 +35,7 @@ export function FeedCard({
   function handleLike() {
     if (liked) return;
     setLiked(true);
-    setDisliked(false);
     onLike();
-  }
-
-  function handleDislike() {
-    if (disliked) return;
-    setDisliked(true);
-    setLiked(false);
-    onDislike();
   }
 
   function handleTap() {
@@ -99,7 +88,7 @@ export function FeedCard({
           />
           <div className="absolute inset-0 bg-black/40" />
           {/* the actual cover, shown complete (no cropping) */}
-          <div className="absolute inset-x-6 top-[calc(env(safe-area-inset-top)+3.5rem)] bottom-56 flex items-center justify-center">
+          <div className="absolute inset-x-6 top-[calc(env(safe-area-inset-top)+6.5rem)] bottom-56 flex items-center justify-center">
             <img
               src={book.cover}
               alt={book.title}
@@ -124,27 +113,12 @@ export function FeedCard({
       )}
 
       {/* reason chip, top */}
-      <p className="absolute inset-x-6 top-[calc(env(safe-area-inset-top)+1rem)] rounded-full bg-white/10 px-3 py-1 text-center text-xs text-amber-200 backdrop-blur-sm">
+      <p className="absolute inset-x-6 top-[calc(env(safe-area-inset-top)+3.75rem)] rounded-full bg-white/10 px-3 py-1 text-center text-xs text-amber-200 backdrop-blur-sm">
         {reason}
       </p>
 
       {/* right-side action rail, TikTok style */}
       <div className="absolute bottom-40 right-3 z-10 flex flex-col items-center gap-5">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDislike();
-          }}
-          aria-label="興味ない"
-          className={`flex h-12 w-12 items-center justify-center rounded-full text-xl backdrop-blur-sm transition ${
-            disliked
-              ? "bg-neutral-600 text-white"
-              : "bg-black/30 text-white/90 hover:bg-black/50"
-          }`}
-        >
-          ✕
-        </button>
         <button
           type="button"
           onClick={(e) => {
