@@ -93,7 +93,7 @@ export function FeedCard({
               src={book.cover}
               alt={book.title}
               draggable={false}
-              className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+              className="h-full w-full rounded-lg object-contain shadow-2xl"
             />
           </div>
         </>

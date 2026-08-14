@@ -196,11 +196,16 @@ function pickUnshown(pool: Book[], shown: Set<string>): { book: Book; favoredAut
 
 // ---- Rakuten-backed path (real, ~endless catalog + real bestsellers) ----
 
-// The declared QPS for this app is 1 request/second — keep a floor between calls.
+// The declared QPS for this app is 1 request/second — keep a floor between
+// background calls. An explicit user action (tapping a genre tab) skips the
+// wait so switching doesn't sit on a dead ~1s pause; it still updates
+// lastCallAt so calls after it stay properly spaced.
 let lastCallAt = 0;
-async function throttle() {
-  const wait = Math.max(0, lastCallAt + 1100 - Date.now());
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+async function throttle(priority = false) {
+  if (!priority) {
+    const wait = Math.max(0, lastCallAt + 1100 - Date.now());
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  }
   lastCallAt = Date.now();
 }
 
@@ -217,8 +222,12 @@ const genrePools = new Map<string, PoolState>();
 const trendingState: PoolState = { items: [], nextPage: 1 };
 
 /** Fetches the next page into the pool; returns how many new items arrived. */
-async function refill(state: PoolState, fetcher: (page: number) => Promise<Book[]>): Promise<number> {
-  await throttle();
+async function refill(
+  state: PoolState,
+  fetcher: (page: number) => Promise<Book[]>,
+  priority = false,
+): Promise<number> {
+  await throttle(priority);
   const items = await fetcher(state.nextPage);
   state.items.push(...items);
   state.nextPage = state.nextPage >= MAX_PAGE ? 1 : state.nextPage + 1;
@@ -234,22 +243,23 @@ async function ensurePoolHasCandidate(
   state: PoolState,
   shown: Set<string>,
   fetcher: (page: number) => Promise<Book[]>,
+  priority = false,
 ) {
   for (let attempt = 0; attempt < 3; attempt++) {
     if (state.items.some((b) => !shown.has(b.isbn))) return;
-    const added = await refill(state, fetcher);
+    const added = await refill(state, fetcher, priority);
     if (added === 0) return; // this query has no more results to offer
   }
 }
 
-async function getGenrePool(genre: string, shown: Set<string>): Promise<Book[]> {
+async function getGenrePool(genre: string, shown: Set<string>, priority = false): Promise<Book[]> {
   let state = genrePools.get(genre);
   if (!state) {
     state = { items: [], nextPage: 1 };
     genrePools.set(genre, state);
   }
   const genreId = GENRE_IDS[genre];
-  await ensurePoolHasCandidate(state, shown, (page) => fetchTrendingBooks(genreId, 30, page));
+  await ensurePoolHasCandidate(state, shown, (page) => fetchTrendingBooks(genreId, 30, page), priority);
   return state.items;
 }
 
@@ -367,8 +377,12 @@ export async function pickNext(shown: Set<string>): Promise<FeedEntry | null> {
 
 // ---- Explicit genre-tab browsing (bypasses the learned ranking entirely) ----
 
-async function pickNextForGenreFromRakuten(genre: string, shown: Set<string>): Promise<FeedEntry | null> {
-  let picked = pickUnshown(await getGenrePool(genre, shown), shown);
+async function pickNextForGenreFromRakuten(
+  genre: string,
+  shown: Set<string>,
+  priority = false,
+): Promise<FeedEntry | null> {
+  let picked = pickUnshown(await getGenrePool(genre, shown, priority), shown);
   if (!picked) picked = pickUnshown(await getTrendingPool(shown), shown);
   if (!picked) return null;
   shown.add(picked.book.isbn);
@@ -393,10 +407,14 @@ async function pickNextForGenreFromSeed(genre: string, shown: Set<string>): Prom
   return { book, genre, reason: reasonFor("top", genre, genre, false), kind: "top" };
 }
 
-export async function pickNextForGenre(genre: string, shown: Set<string>): Promise<FeedEntry | null> {
+export async function pickNextForGenre(
+  genre: string,
+  shown: Set<string>,
+  priority = false,
+): Promise<FeedEntry | null> {
   if (!rakutenBackendDown) {
     try {
-      return await pickNextForGenreFromRakuten(genre, shown);
+      return await pickNextForGenreFromRakuten(genre, shown, priority);
     } catch {
       rakutenBackendDown = true;
     }

@@ -26,7 +26,7 @@ export function Feed() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  async function appendBatch() {
+  async function appendBatch(priorityFirst = false) {
     if (loadingRef.current) return;
     loadingRef.current = true;
     try {
@@ -34,7 +34,7 @@ export function Feed() {
       for (let i = 0; i < BATCH_SIZE; i++) {
         const genre = selectedGenreRef.current;
         const entry = genre
-          ? await pickNextForGenre(genre, shownRef.current)
+          ? await pickNextForGenre(genre, shownRef.current, priorityFirst && i === 0)
           : await pickNext(shownRef.current);
         if (entry) next.push(entry);
       }
@@ -84,7 +84,7 @@ export function Feed() {
     setError(null);
     setEntries([]);
     scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
-    appendBatch();
+    appendBatch(true);
   }
 
   return (
@@ -105,8 +105,9 @@ export function Feed() {
           {error}
         </div>
       ) : entries.length === 0 ? (
-        <div className="flex h-dvh items-center justify-center bg-black text-neutral-400">
-          書棚を並べています…
+        <div className="flex h-dvh flex-col items-center justify-center gap-3 bg-black text-neutral-400">
+          <span className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-600 border-t-amber-400" />
+          <span className="text-sm">書棚を並べています…</span>
         </div>
       ) : (
         <div ref={scrollRef} className="h-dvh snap-y snap-mandatory overflow-y-scroll">

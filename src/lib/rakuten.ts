@@ -51,9 +51,12 @@ async function search(params: Record<string, string>): Promise<Book[]> {
     throw new Error(`Books API request failed: ${res.status}`);
   }
   const data: RakutenResponse = await res.json();
-  return data.Items.filter((i) => i.Item.largeImageUrl && i.Item.title).map(
-    (i) => mapItem(i.Item),
-  );
+  // Require a real cover and a substantive synopsis — listings without one
+  // are often goods/magazines/bundled extras rather than an actual book,
+  // and show up in the feed as an awkward "あらすじは準備中です" dead end.
+  return data.Items.filter(
+    (i) => i.Item.largeImageUrl && i.Item.title && i.Item.itemCaption?.trim().length >= 10,
+  ).map((i) => mapItem(i.Item));
 }
 
 /** Best-selling books overall, or within a Rakuten Books genre. */
