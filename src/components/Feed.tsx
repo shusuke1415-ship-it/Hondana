@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { pickNext, recordSignal, type FeedEntry } from "../lib/recommendation";
+import { pickNext, recordDwell, recordSignal, type FeedEntry } from "../lib/recommendation";
 import { FeedCard } from "./FeedCard";
 
 const BATCH_SIZE = 5;
@@ -73,8 +73,10 @@ export function Feed() {
           book={entry.book}
           genre={entry.genre}
           reason={entry.reason}
-          onLike={() => recordSignal(entry.genre, "like")}
-          onDislike={() => recordSignal(entry.genre, "dislike")}
+          onLike={() => recordSignal(entry.genre, entry.book.author, "like")}
+          onDislike={() => recordSignal(entry.genre, entry.book.author, "dislike")}
+          onPurchaseClick={() => recordSignal(entry.genre, entry.book.author, "purchase")}
+          onDwell={(seconds) => recordDwell(entry.genre, entry.book.author, seconds)}
         />
       ))}
       <div ref={sentinelRef} className="h-1" />

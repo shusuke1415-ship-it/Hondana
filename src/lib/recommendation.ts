@@ -6,7 +6,8 @@ import {
   isRakutenConfigured,
 } from "./rakuten";
 
-const STORAGE_KEY = "serendipity-genre-scores";
+const GENRE_STORAGE_KEY = "serendipity-genre-scores";
+const AUTHOR_STORAGE_KEY = "serendipity-author-scores";
 
 const GENRE_ADJACENCY: Record<string, string[]> = {
   小説: ["ミステリー", "海外文学", "文芸評論"],
@@ -41,16 +42,17 @@ const GENRE_KEYWORDS: Record<string, string> = {
   詩: "詩集",
   歴史: "歴史 新書",
   趣味: "趣味 入門",
+  話題の本: "ベストセラー",
 };
 
 const ALL_GENRES = Object.keys(GENRE_KEYWORDS);
 
-export type Signal = "like" | "dislike" | "view";
+export type Signal = "like" | "dislike" | "purchase";
 
 const SIGNAL_WEIGHT: Record<Signal, number> = {
   like: 3,
   dislike: -2,
-  view: 0.3,
+  purchase: 6,
 };
 
 export type PickKind = "top" | "adjacent" | "random" | "cold-start";
@@ -62,37 +64,63 @@ export interface FeedEntry {
   kind: PickKind;
 }
 
-function loadScores(): Record<string, number> {
+function loadMap(key: string): Record<string, number> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 }
 
-function saveScores(scores: Record<string, number>) {
+function saveMap(key: string, scores: Record<string, number>) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(scores));
+    localStorage.setItem(key, JSON.stringify(scores));
   } catch {
     // localStorage unavailable (private mode etc.) — silently skip persistence
   }
 }
 
-export function recordSignal(genre: string, signal: Signal) {
-  const scores = loadScores();
-  scores[genre] = (scores[genre] ?? 0) + SIGNAL_WEIGHT[signal];
-  saveScores(scores);
+function bump(key: string, name: string, amount: number) {
+  if (!name) return;
+  const scores = loadMap(key);
+  scores[name] = (scores[name] ?? 0) + amount;
+  saveMap(key, scores);
+}
+
+/** Explicit tap: like/dislike buttons, or a purchase-link click. */
+export function recordSignal(genre: string, author: string, signal: Signal) {
+  const weight = SIGNAL_WEIGHT[signal];
+  bump(GENRE_STORAGE_KEY, genre, weight);
+  bump(AUTHOR_STORAGE_KEY, author, weight);
+}
+
+/**
+ * Implicit, TikTok-style signal from how long a card stayed on screen.
+ * Scrolling past in under ~1.5s reads as disinterest; lingering for several
+ * seconds reads as genuine interest — same idea as watch-time on a FYP.
+ */
+export function recordDwell(genre: string, author: string, seconds: number) {
+  let weight: number;
+  if (seconds < 1.5) weight = -1;
+  else if (seconds < 3) weight = 0;
+  else if (seconds < 6) weight = 1;
+  else weight = 2.5;
+
+  if (weight === 0) return;
+  bump(GENRE_STORAGE_KEY, genre, weight);
+  bump(AUTHOR_STORAGE_KEY, author, weight);
 }
 
 function topGenreFromScores(): string | null {
-  const scores = loadScores();
+  const scores = loadMap(GENRE_STORAGE_KEY);
   const withScore = Object.entries(scores).filter(([, s]) => s > 0);
   if (withScore.length === 0) return null;
   return withScore.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
 }
 
-function reasonFor(kind: PickKind, genre: string, topGenre: string | null): string {
+function reasonFor(kind: PickKind, genre: string, topGenre: string | null, favoredAuthor: boolean): string {
+  if (favoredAuthor) return "よく読んでいる著者の一冊です";
   switch (kind) {
     case "top":
       return `あなたが好きな「${genre}」の一冊です`;
@@ -107,13 +135,29 @@ function reasonFor(kind: PickKind, genre: string, topGenre: string | null): stri
   }
 }
 
-function popRandomUnshown(pool: Book[], shown: Set<string>): Book | undefined {
+/** Weighted pick that favors books by authors the user has responded well to. */
+function pickUnshown(pool: Book[], shown: Set<string>): { book: Book; favoredAuthor: boolean } | undefined {
   const candidates = pool.filter((b) => !shown.has(b.isbn));
   if (candidates.length === 0) return undefined;
-  const picked = candidates[Math.floor(Math.random() * candidates.length)];
-  const idx = pool.indexOf(picked);
-  if (idx >= 0) pool.splice(idx, 1);
-  return picked;
+
+  const authorScores = loadMap(AUTHOR_STORAGE_KEY);
+  const weights = candidates.map((b) => 1 + Math.max(0, authorScores[b.author] ?? 0) * 2);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  let idx = candidates.length - 1;
+  for (let i = 0; i < candidates.length; i++) {
+    r -= weights[i];
+    if (r <= 0) {
+      idx = i;
+      break;
+    }
+  }
+
+  const book = candidates[idx];
+  const favoredAuthor = (authorScores[book.author] ?? 0) > 2;
+  const poolIdx = pool.indexOf(book);
+  if (poolIdx >= 0) pool.splice(poolIdx, 1);
+  return { book, favoredAuthor };
 }
 
 // ---- Rakuten-backed path (real, ~endless catalog + real bestsellers) ----
@@ -128,7 +172,6 @@ async function throttle() {
 
 const genrePools = new Map<string, Book[]>();
 let trendingPool: Book[] = [];
-let trendingPage = 1;
 
 async function getGenrePool(genre: string): Promise<Book[]> {
   const cached = genrePools.get(genre);
@@ -144,7 +187,6 @@ async function getTrendingPool(): Promise<Book[]> {
   if (trendingPool.length > 0) return trendingPool;
   await throttle();
   trendingPool = await fetchTrendingBooks(undefined, 10);
-  trendingPage += 1;
   return trendingPool;
 }
 
@@ -153,12 +195,12 @@ async function pickNextFromRakuten(shown: Set<string>): Promise<FeedEntry | null
 
   let kind: PickKind;
   let genre: string;
-  let book: Book | undefined;
+  let picked: { book: Book; favoredAuthor: boolean } | undefined;
 
   if (!topGenre) {
     kind = "cold-start";
     genre = "話題の本";
-    book = popRandomUnshown(await getTrendingPool(), shown);
+    picked = pickUnshown(await getTrendingPool(), shown);
   } else {
     const roll = Math.random();
     if (roll < 0.7) {
@@ -174,14 +216,19 @@ async function pickNextFromRakuten(shown: Set<string>): Promise<FeedEntry | null
       kind = "random";
       genre = ALL_GENRES[Math.floor(Math.random() * ALL_GENRES.length)];
     }
-    book = popRandomUnshown(await getGenrePool(genre), shown);
+    picked = pickUnshown(await getGenrePool(genre), shown);
     // fall back to trending if this genre's pool is temporarily exhausted
-    if (!book) book = popRandomUnshown(await getTrendingPool(), shown);
+    if (!picked) picked = pickUnshown(await getTrendingPool(), shown);
   }
 
-  if (!book) return null;
-  shown.add(book.isbn);
-  return { book, genre, reason: reasonFor(kind, genre, topGenre), kind };
+  if (!picked) return null;
+  shown.add(picked.book.isbn);
+  return {
+    book: picked.book,
+    genre,
+    reason: reasonFor(kind, genre, topGenre, picked.favoredAuthor),
+    kind,
+  };
 }
 
 // ---- Static fallback path (used when Rakuten isn't configured) ----
@@ -215,13 +262,20 @@ async function pickNextFromSeed(shown: Set<string>): Promise<FeedEntry | null> {
     }
   }
 
-  const picked = candidates[Math.floor(Math.random() * candidates.length)];
-  if (!picked) return null;
-  shown.add(picked.isbn);
+  const seedPicked = candidates[Math.floor(Math.random() * candidates.length)];
+  if (!seedPicked) return null;
+  shown.add(seedPicked.isbn);
 
-  const [book] = await fetchBooks([picked.isbn]);
+  const [book] = await fetchBooks([seedPicked.isbn]);
   if (!book) return null;
-  return { book, genre: picked.genre, reason: reasonFor(kind, picked.genre, topGenre), kind };
+  const authorScores = loadMap(AUTHOR_STORAGE_KEY);
+  const favoredAuthor = (authorScores[book.author] ?? 0) > 2;
+  return {
+    book,
+    genre: seedPicked.genre,
+    reason: reasonFor(kind, seedPicked.genre, topGenre, favoredAuthor),
+    kind,
+  };
 }
 
 export function pickNext(shown: Set<string>): Promise<FeedEntry | null> {

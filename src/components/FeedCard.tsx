@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Book } from "../lib/openbd";
 import { buildAmazonPurchaseUrl } from "../lib/affiliate";
 
@@ -8,12 +8,30 @@ interface FeedCardProps {
   reason: string;
   onLike: () => void;
   onDislike: () => void;
+  onPurchaseClick: () => void;
+  onDwell: (seconds: number) => void;
 }
 
-export function FeedCard({ book, genre, reason, onLike, onDislike }: FeedCardProps) {
+const DOUBLE_TAP_WINDOW_MS = 300;
+const HEART_BURST_MS = 700;
+
+export function FeedCard({
+  book,
+  genre,
+  reason,
+  onLike,
+  onDislike,
+  onPurchaseClick,
+  onDwell,
+}: FeedCardProps) {
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
+  const [showHeartBurst, setShowHeartBurst] = useState(false);
   const purchaseUrl = book.purchaseUrl ?? buildAmazonPurchaseUrl(book.isbn);
+
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const enteredAtRef = useRef<number | null>(null);
+  const lastTapRef = useRef(0);
 
   function handleLike() {
     if (liked) return;
@@ -29,8 +47,43 @@ export function FeedCard({ book, genre, reason, onLike, onDislike }: FeedCardPro
     onDislike();
   }
 
+  function handleCoverTap() {
+    const now = Date.now();
+    if (now - lastTapRef.current < DOUBLE_TAP_WINDOW_MS) {
+      handleLike();
+      setShowHeartBurst(true);
+      setTimeout(() => setShowHeartBurst(false), HEART_BURST_MS);
+    }
+    lastTapRef.current = now;
+  }
+
+  // Watch-time style implicit signal: how long this card stayed mostly
+  // on screen before the user scrolled past it.
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          enteredAtRef.current = Date.now();
+        } else if (enteredAtRef.current !== null) {
+          const seconds = (Date.now() - enteredAtRef.current) / 1000;
+          enteredAtRef.current = null;
+          onDwell(seconds);
+        }
+      },
+      { threshold: 0.6 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book.isbn]);
+
   return (
-    <section className="relative flex h-dvh w-full snap-start snap-always flex-col items-center justify-center overflow-hidden bg-neutral-900 px-6 py-8">
+    <section
+      ref={sectionRef}
+      className="relative flex h-dvh w-full snap-start snap-always flex-col items-center justify-center overflow-hidden bg-neutral-900 px-6 py-8"
+    >
       {/* blurred backdrop from the cover for atmosphere */}
       {book.cover && (
         <img
@@ -46,11 +99,15 @@ export function FeedCard({ book, genre, reason, onLike, onDislike }: FeedCardPro
           {reason}
         </p>
 
-        <div className="h-72 w-48 overflow-hidden rounded-lg shadow-2xl">
+        <div
+          onClick={handleCoverTap}
+          className="relative h-72 w-48 touch-manipulation select-none overflow-hidden rounded-lg shadow-2xl"
+        >
           {book.cover ? (
             <img
               src={book.cover}
               alt={book.title}
+              draggable={false}
               className="h-full w-full object-cover"
             />
           ) : (
@@ -59,6 +116,11 @@ export function FeedCard({ book, genre, reason, onLike, onDislike }: FeedCardPro
                 {book.title}
               </span>
             </div>
+          )}
+          {showHeartBurst && (
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-7xl text-white/90 [animation:heart-pop_0.7s_ease-out]">
+              ♥
+            </span>
           )}
         </div>
 
@@ -93,6 +155,7 @@ export function FeedCard({ book, genre, reason, onLike, onDislike }: FeedCardPro
             href={purchaseUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={onPurchaseClick}
             className="flex-1 rounded-full bg-amber-500 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-amber-600"
           >
             この本を購入する
