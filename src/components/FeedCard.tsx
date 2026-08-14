@@ -86,14 +86,27 @@ export function FeedCard({
       onClick={handleTap}
       className="relative h-dvh w-full snap-start snap-always touch-manipulation select-none overflow-hidden bg-black"
     >
-      {/* full-bleed cover as the entire screen's background */}
       {book.cover ? (
-        <img
-          src={book.cover}
-          alt={book.title}
-          draggable={false}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
+        <>
+          {/* blurred full-bleed backdrop for atmosphere, doesn't need to show the whole image */}
+          <img
+            src={book.cover}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-2xl"
+          />
+          <div className="absolute inset-0 bg-black/40" />
+          {/* the actual cover, shown complete (no cropping) */}
+          <div className="absolute inset-x-6 top-[calc(env(safe-area-inset-top)+3.5rem)] bottom-56 flex items-center justify-center">
+            <img
+              src={book.cover}
+              alt={book.title}
+              draggable={false}
+              className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+            />
+          </div>
+        </>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-200 to-amber-500 p-8 text-center">
           <span className="text-xl font-bold text-amber-950">{book.title}</span>
@@ -101,7 +114,7 @@ export function FeedCard({
       )}
 
       {/* scrim for text legibility, stronger at top and bottom */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-black/60" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/50" />
 
       {showHeartBurst && (
         <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-8xl text-white/90 [animation:heart-pop_0.7s_ease-out]">
