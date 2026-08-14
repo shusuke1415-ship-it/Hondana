@@ -85,7 +85,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           <span className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-600 border-t-amber-400" />
         </div>
       ) : (
-        <div className="grid flex-1 grid-cols-3 gap-2.5 overflow-y-auto px-4 pb-4">
+        <div className="grid flex-1 auto-rows-max grid-cols-2 content-start gap-3 overflow-y-auto px-4 pb-4">
           {candidates.map(({ book }) => {
             const isSelected = selected.has(book.isbn);
             return (
@@ -93,21 +93,26 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                 key={book.isbn}
                 type="button"
                 onClick={() => toggle(book.isbn)}
-                className={`relative aspect-[3/4] overflow-hidden rounded-lg transition ${
-                  isSelected ? "ring-4 ring-amber-400" : "opacity-70"
+                className={`overflow-hidden rounded-lg bg-neutral-900 text-left transition ${
+                  isSelected ? "ring-4 ring-amber-400" : ""
                 }`}
               >
-                <img
-                  src={book.cover}
-                  alt={book.title}
-                  draggable={false}
-                  className="h-full w-full object-cover"
-                />
-                {isSelected && (
-                  <span className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-white">
-                    ✓
-                  </span>
-                )}
+                <div className="relative aspect-[3/4] w-full">
+                  <img
+                    src={book.cover}
+                    alt={book.title}
+                    draggable={false}
+                    className={`h-full w-full object-cover transition ${isSelected ? "" : "opacity-80"}`}
+                  />
+                  {isSelected && (
+                    <span className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-amber-400 text-base font-bold text-white">
+                      ✓
+                    </span>
+                  )}
+                </div>
+                <p className="line-clamp-2 px-2 py-1.5 text-xs font-semibold text-white">
+                  {book.title}
+                </p>
               </button>
             );
           })}
