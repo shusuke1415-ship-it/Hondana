@@ -15,6 +15,8 @@ interface RakutenItem {
   largeImageUrl: string;
   itemUrl: string;
   booksGenreId: string;
+  reviewCount: number;
+  reviewAverage: string;
 }
 
 interface RakutenResponse {
@@ -29,6 +31,7 @@ function upscaleCover(url: string): string {
 }
 
 function mapItem(item: RakutenItem): Book {
+  const reviewAverage = Number(item.reviewAverage);
   return {
     isbn: item.isbn,
     title: item.title,
@@ -37,6 +40,8 @@ function mapItem(item: RakutenItem): Book {
     cover: upscaleCover(item.largeImageUrl),
     synopsis: item.itemCaption,
     purchaseUrl: item.itemUrl,
+    reviewCount: item.reviewCount || undefined,
+    reviewAverage: reviewAverage > 0 ? reviewAverage : undefined,
   };
 }
 

@@ -142,9 +142,14 @@ export function FeedCard({
           {genre}
         </span>
         <h2 className="text-lg font-bold text-white drop-shadow">{book.title}</h2>
-        {book.author && (
-          <p className="mt-0.5 text-sm text-neutral-200">{book.author}</p>
-        )}
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-neutral-200">
+          {book.author && <span>{book.author}</span>}
+          {book.reviewAverage && book.reviewCount && (
+            <span className="text-amber-300">
+              ★{book.reviewAverage.toFixed(1)}（{book.reviewCount.toLocaleString()}件）
+            </span>
+          )}
+        </div>
         <div
           onClick={(e) => {
             e.stopPropagation();

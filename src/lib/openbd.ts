@@ -7,6 +7,9 @@ export interface Book {
   synopsis: string;
   /** A real product page URL, when the data source provides one (e.g. Rakuten). */
   purchaseUrl?: string;
+  /** Review count/average, when the data source provides them (e.g. Rakuten). */
+  reviewCount?: number;
+  reviewAverage?: number;
 }
 
 interface OpenBDSummary {

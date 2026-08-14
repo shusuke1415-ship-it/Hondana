@@ -8,6 +8,7 @@ import {
   type FeedEntry,
 } from "../lib/recommendation";
 import { addFavorite, getFavorites } from "../lib/favorites";
+import { loadSeenHistory, appendSeenHistory } from "../lib/history";
 import { FeedCard } from "./FeedCard";
 import { FavoritesPage } from "./FavoritesPage";
 import { GenreTabs } from "./GenreTabs";
@@ -20,7 +21,9 @@ export function Feed() {
   const [showFavorites, setShowFavorites] = useState(false);
   const [favoriteCount, setFavoriteCount] = useState(() => getFavorites().length);
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
-  const shownRef = useRef<Set<string>>(new Set());
+  // Seeded from localStorage so a fresh page load doesn't replay books
+  // already shown in a previous visit.
+  const shownRef = useRef<Set<string>>(new Set(loadSeenHistory()));
   const loadingRef = useRef(false);
   const selectedGenreRef = useRef<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -40,6 +43,7 @@ export function Feed() {
       }
       if (next.length > 0) {
         setEntries((prev) => [...prev, ...next]);
+        appendSeenHistory(next.map((e) => e.book.isbn));
       }
     } catch {
       setError("本の情報を取得できませんでした。時間をおいて再度お試しください。");
@@ -80,7 +84,9 @@ export function Feed() {
     setSelectedGenre(genre);
     selectedGenreRef.current = genre;
     if (genre) selectGenre(genre);
-    shownRef.current = new Set();
+    // Note: shownRef is intentionally NOT reset here — it's the persistent
+    // cross-session history, and each genre already pulls from its own pool
+    // so cross-genre entries in it don't block anything.
     setError(null);
     setEntries([]);
     scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
