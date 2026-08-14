@@ -170,24 +170,58 @@ async function throttle() {
   lastCallAt = Date.now();
 }
 
-const genrePools = new Map<string, Book[]>();
-let trendingPool: Book[] = [];
+// Rakuten allows up to page 100; wrap back to page 1 in the unlikely case a
+// single session scrolls a genre that far (recycled results beat a dead end).
+const MAX_PAGE = 100;
 
-async function getGenrePool(genre: string): Promise<Book[]> {
-  const cached = genrePools.get(genre);
-  if (cached && cached.length > 0) return cached;
-  await throttle();
-  const keyword = GENRE_KEYWORDS[genre] ?? genre;
-  const items = await fetchBooksByKeyword(keyword, 10);
-  genrePools.set(genre, items);
-  return items;
+interface PoolState {
+  items: Book[];
+  nextPage: number;
 }
 
-async function getTrendingPool(): Promise<Book[]> {
-  if (trendingPool.length > 0) return trendingPool;
+const genrePools = new Map<string, PoolState>();
+const trendingState: PoolState = { items: [], nextPage: 1 };
+
+/** Fetches the next page into the pool; returns how many new items arrived. */
+async function refill(state: PoolState, fetcher: (page: number) => Promise<Book[]>): Promise<number> {
   await throttle();
-  trendingPool = await fetchTrendingBooks(undefined, 10);
-  return trendingPool;
+  const items = await fetcher(state.nextPage);
+  state.items.push(...items);
+  state.nextPage = state.nextPage >= MAX_PAGE ? 1 : state.nextPage + 1;
+  return items.length;
+}
+
+// Items already picked get spliced out of a pool, but an item can also sit
+// unpicked in one pool after being shown via a different pool (trending and
+// a genre search often overlap). So "does this pool have a usable candidate"
+// has to check against `shown`, not just pool size — otherwise the feed can
+// stall on a pool that's technically non-empty but fully seen already.
+async function ensurePoolHasCandidate(
+  state: PoolState,
+  shown: Set<string>,
+  fetcher: (page: number) => Promise<Book[]>,
+) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (state.items.some((b) => !shown.has(b.isbn))) return;
+    const added = await refill(state, fetcher);
+    if (added === 0) return; // this query has no more results to offer
+  }
+}
+
+async function getGenrePool(genre: string, shown: Set<string>): Promise<Book[]> {
+  let state = genrePools.get(genre);
+  if (!state) {
+    state = { items: [], nextPage: 1 };
+    genrePools.set(genre, state);
+  }
+  const keyword = GENRE_KEYWORDS[genre] ?? genre;
+  await ensurePoolHasCandidate(state, shown, (page) => fetchBooksByKeyword(keyword, 30, page));
+  return state.items;
+}
+
+async function getTrendingPool(shown: Set<string>): Promise<Book[]> {
+  await ensurePoolHasCandidate(trendingState, shown, (page) => fetchTrendingBooks(undefined, 30, page));
+  return trendingState.items;
 }
 
 async function pickNextFromRakuten(shown: Set<string>): Promise<FeedEntry | null> {
@@ -200,7 +234,7 @@ async function pickNextFromRakuten(shown: Set<string>): Promise<FeedEntry | null
   if (!topGenre) {
     kind = "cold-start";
     genre = "話題の本";
-    picked = pickUnshown(await getTrendingPool(), shown);
+    picked = pickUnshown(await getTrendingPool(shown), shown);
   } else {
     const roll = Math.random();
     if (roll < 0.7) {
@@ -216,9 +250,9 @@ async function pickNextFromRakuten(shown: Set<string>): Promise<FeedEntry | null
       kind = "random";
       genre = ALL_GENRES[Math.floor(Math.random() * ALL_GENRES.length)];
     }
-    picked = pickUnshown(await getGenrePool(genre), shown);
-    // fall back to trending if this genre's pool is temporarily exhausted
-    if (!picked) picked = pickUnshown(await getTrendingPool(), shown);
+    picked = pickUnshown(await getGenrePool(genre, shown), shown);
+    // fall back to trending if this genre's pool is genuinely exhausted
+    if (!picked) picked = pickUnshown(await getTrendingPool(shown), shown);
   }
 
   if (!picked) return null;

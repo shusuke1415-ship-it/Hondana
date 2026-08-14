@@ -36,6 +36,9 @@ export function Feed() {
   }, []);
 
   useEffect(() => {
+    // The sentinel only exists once the loading placeholder gives way to the
+    // real feed markup, so this effect must re-run once entries first land —
+    // an empty dependency array would fire before the ref is ever attached.
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
@@ -47,11 +50,11 @@ export function Feed() {
     observer.observe(sentinel);
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [entries.length > 0]);
 
   if (error && entries.length === 0) {
     return (
-      <div className="flex h-dvh items-center justify-center bg-neutral-900 text-red-400">
+      <div className="flex h-dvh items-center justify-center bg-black text-red-400">
         {error}
       </div>
     );
@@ -59,7 +62,7 @@ export function Feed() {
 
   if (entries.length === 0) {
     return (
-      <div className="flex h-dvh items-center justify-center bg-neutral-900 text-neutral-400">
+      <div className="flex h-dvh items-center justify-center bg-black text-neutral-400">
         書棚を並べています…
       </div>
     );

@@ -19,8 +19,8 @@ export default defineConfig(({ mode }) => {
           name: 'セレンディピティ書店',
           short_name: 'セレン書店',
           description: '本屋での偶然の出会いをスマホに。タップして裏返す、新しい立ち読み体験。',
-          theme_color: '#d97706',
-          background_color: '#fafaf9',
+          theme_color: '#000000',
+          background_color: '#000000',
           display: 'standalone',
           start_url: '/',
           icons: [

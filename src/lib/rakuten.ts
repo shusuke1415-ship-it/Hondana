@@ -73,12 +73,14 @@ async function search(params: Record<string, string>): Promise<Book[]> {
 /** Best-selling books overall, or within a Rakuten Books genre. */
 export function fetchTrendingBooks(
   booksGenreId = "001",
-  hits = 10,
+  hits = 30,
+  page = 1,
 ): Promise<Book[]> {
   return search({
     booksGenreId,
     sort: "sales",
     hits: String(hits),
+    page: String(page),
     outOfStockFlag: "0",
   });
 }
@@ -86,11 +88,13 @@ export function fetchTrendingBooks(
 /** Keyword search, used to browse a specific mood/genre in the feed. */
 export function fetchBooksByKeyword(
   keyword: string,
-  hits = 10,
+  hits = 30,
+  page = 1,
 ): Promise<Book[]> {
   return search({
     keyword,
     hits: String(hits),
+    page: String(page),
     outOfStockFlag: "0",
   });
 }
