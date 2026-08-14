@@ -1,6 +1,6 @@
 import { seedBooks } from "../data/seedBooks";
 import { fetchBooks, type Book } from "./openbd";
-import { fetchBooksByKeyword, fetchTrendingBooks } from "./rakuten";
+import { fetchTrendingBooks } from "./rakuten";
 
 const GENRE_STORAGE_KEY = "serendipity-genre-scores";
 const AUTHOR_STORAGE_KEY = "serendipity-author-scores";
@@ -14,34 +14,40 @@ const GENRE_ADJACENCY: Record<string, string[]> = {
   生き方: ["エッセイ", "心と体", "思想"],
   心と体: ["エッセイ", "生き方"],
   思想: ["生き方", "文芸評論", "カルチャー", "歴史"],
-  紀行: ["エッセイ", "写真集"],
-  写真集: ["紀行", "カルチャー"],
-  カルチャー: ["エッセイ", "思想", "写真集", "詩"],
+  紀行: ["エッセイ", "カルチャー"],
+  カルチャー: ["エッセイ", "思想", "詩"],
   詩: ["カルチャー", "エッセイ"],
   歴史: ["思想", "カルチャー"],
   趣味: ["カルチャー", "生き方"],
 };
 
-// Search keyword to use against Rakuten Books for each mood/genre tag.
-const GENRE_KEYWORDS: Record<string, string> = {
-  小説: "小説",
-  ミステリー: "ミステリー小説",
-  海外文学: "海外文学",
-  文芸評論: "文芸評論",
-  エッセイ: "エッセイ",
-  生き方: "生き方",
-  心と体: "からだ こころ",
-  思想: "哲学 思想",
-  紀行: "紀行 旅エッセイ",
-  写真集: "写真集",
-  カルチャー: "カルチャー 評論",
-  詩: "詩集",
-  歴史: "歴史 新書",
-  趣味: "趣味 入門",
-  話題の本: "ベストセラー",
+// Rakuten Books genre IDs for each mood/genre tag, hand-picked to exclude
+// categories where age-restricted or sexually explicit content is known to
+// be mixed in under normal book listings (manga/青年誌, 写真集・タレント,
+// BL/TL). Trusting a keyword search alone let that content straight into
+// the "trending" feed — genre-scoped browsing avoids that class of result.
+const GENRE_IDS: Record<string, string> = {
+  小説: "001004008", // 日本の小説
+  ミステリー: "001004001", // ミステリー・サスペンス
+  海外文学: "001004009", // 外国の小説
+  文芸評論: "001008022", // 文学
+  エッセイ: "001004003", // エッセイ
+  生き方: "001020002", // 美容・暮らし・健康・料理（新書）
+  心と体: "001020002",
+  思想: "001008002", // 哲学・思想
+  紀行: "001007", // 旅行・留学・アウトドア
+  カルチャー: "001009", // ホビー・スポーツ・美術
+  詩: "001008022",
+  歴史: "001008005", // 歴史
+  趣味: "001009",
+  // openBD フォールバック(seedBooks.ts)にだけ存在するジャンルタグ。安全な
+  // ジャンルへ振っておく — Rakuten側の001013(写真集・タレント)は
+  // グラビア系が混ざるため使わない。
+  写真集: "001009",
+  話題の本: "001004", // 小説・エッセイ全体（コールドスタート表示用）
 };
 
-const ALL_GENRES = Object.keys(GENRE_KEYWORDS);
+const ALL_GENRES = Object.keys(GENRE_IDS).filter((g) => g !== "話題の本");
 
 export type Signal = "like" | "dislike" | "purchase";
 
@@ -210,13 +216,15 @@ async function getGenrePool(genre: string, shown: Set<string>): Promise<Book[]> 
     state = { items: [], nextPage: 1 };
     genrePools.set(genre, state);
   }
-  const keyword = GENRE_KEYWORDS[genre] ?? genre;
-  await ensurePoolHasCandidate(state, shown, (page) => fetchBooksByKeyword(keyword, 30, page));
+  const genreId = GENRE_IDS[genre];
+  await ensurePoolHasCandidate(state, shown, (page) => fetchTrendingBooks(genreId, 30, page));
   return state.items;
 }
 
 async function getTrendingPool(shown: Set<string>): Promise<Book[]> {
-  await ensurePoolHasCandidate(trendingState, shown, (page) => fetchTrendingBooks(undefined, 30, page));
+  await ensurePoolHasCandidate(trendingState, shown, (page) =>
+    fetchTrendingBooks(GENRE_IDS["話題の本"], 30, page),
+  );
   return trendingState.items;
 }
 
